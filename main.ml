@@ -159,26 +159,41 @@ let rec play p1 p2 game pending_player_box =
 				_loop p1 p2 game pending_player_box
 
 
+(* Returns player's opponent *)
+let opponent p1 p2 p =
+	if p == p1 then p2 else p1
+
+
+(* Checks player's connection *)
+let check_link p = Lwt.pick [ recv p; Lwt_unix.sleep 0.2 >> Lwt.return "" ]
+
+
+(* Checks players connection *)
+let check_players_link p1 p2 = check_link p1 >> check_link p2
+
+
 (* Shuffles players and starts the game *)
 let create_game p1 p2 pending_player_box =
 	let msg = "Game started"
+	and opponent = opponent p1 p2
 	and p1, p2 = if Random.int 2 = 1 then p2, p1 else p1, p2
 	in
 		try_lwt
-			lwt _ = send p1 msg and _ = send p2 msg
-			in
-				play p1 p2 (TicTacToe.new_game ()) pending_player_box
+				lwt _ = check_players_link p1 p2 >> send p1 msg >> send p2 msg 
+				in
+					try_lwt
+						play p1 p2 (TicTacToe.new_game ()) pending_player_box
+					with
+						Disconnected p -> (
+							(try_lwt
+									send (opponent p) "Opponent disconnected, please wait another"
+								with
+									Disconnected _ -> Lwt.return ()
+							) >> Lwt.fail (Disconnected p)
+						)
 		with 
 			Disconnected p -> (
-				let opponent = if p == p1 then p2 else p1 in
-					lwt _ = Lwt_log.info "User disconnected"
-					and _ =
-						try_lwt
-							send opponent "Opponent disconnected, please wait another" >>= (fun () -> Lwt_mvar.put pending_player_box opponent)
-						with
-							Disconnected _ -> Lwt_log.info "User disconnected"
-					in
-						Lwt.return ()
+				Lwt_log.info "User disconnected" >> Lwt_mvar.put pending_player_box (opponent p) >> Lwt.return ()
 			)
 
 
