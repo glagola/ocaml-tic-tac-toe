@@ -155,7 +155,7 @@ let rec play p1 p2 game pending_player_box =
 (* Shuffles players and starts the game *)
 let create_game p1 p2 pending_player_box =
 	let msg = "Game started"
-	and p1, p2 = if Random.int 2 mod 2 = 1 then p2, p1 else p1, p2
+	and p1, p2 = if Random.int 2 = 1 then p2, p1 else p1, p2
 	in
 		try_lwt
 			lwt _ = send p1 msg and _ = send p2 msg
