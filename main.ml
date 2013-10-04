@@ -121,6 +121,10 @@ let wait_for_start pending_player_box player =
 			Disconnected _ -> Lwt_log.info "User disconnected"
 
 
+let colored_str_of_field game = 
+	"\r\n" ^ (TicTacToe.colored_str_of_field game) ^ "\r\n"
+
+
 (* Shows result of the game to players, and suggests them to begin a new game *)
 let game_over p1 p2 game pending_player_box =
 	let msg_for_p1, msg_for_p2 = 
@@ -128,18 +132,21 @@ let game_over p1 p2 game pending_player_box =
 			true ->	"Draw", "Draw"
 		| false -> "You win", "You lose"
 	in
-		lwt _ = send p1 msg_for_p1
-		and _ = send p2 msg_for_p2
+		lwt _ = send p1 (colored_str_of_field game)
+		and _ = send p2 (colored_str_of_field game)
 		in
-			let wait_for_start = wait_for_start pending_player_box in
-				Lwt.ignore_result (wait_for_start p1);
-				Lwt.ignore_result (wait_for_start p2);
-				Lwt.return ()
+			lwt _ = send p1 msg_for_p1
+			and _ = send p2 msg_for_p2
+			in
+				let wait_for_start = wait_for_start pending_player_box in
+					Lwt.ignore_result (wait_for_start p1);
+					Lwt.ignore_result (wait_for_start p2);
+					Lwt.return ()
 
 
 (* Game loop *)
 let rec play p1 p2 game pending_player_box =
-	lwt _ = send p1 ( "\r\n" ^ (TicTacToe.colored_str_of_field game) ^ "\r\n") in
+	lwt _ = send p1 (colored_str_of_field game) in
 		lwt _ = send p1 "It's your turn. Type \"turn <row> <column>\""
 		and _ = send p2 "Opponent makes his move" in
 			let rec _loop p1 p2 game pending_player_box = 
