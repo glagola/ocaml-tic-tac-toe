@@ -103,9 +103,10 @@ let field_to_string (_, field) =
 				let raw_rows = [ sub 0 3; sub 3 3; sub 6 3 ] in
 					let columns_rows = List.map (columns) raw_rows in
 						let f i s = Printf.sprintf (" %d" ^^ "%s") (i+1) s in
-							let rules_columns_rows = List.mapi (f) columns_rows 
-							and rule = "   1   2   3\n" in
-								rule ^ (String.concat "\n   ---------\n" rules_columns_rows)
+							let crlf = "\r\n" in
+								let rules_columns_rows = List.mapi (f) columns_rows 
+								and rule = "   1   2   3" ^ crlf in
+									rule ^ (String.concat (crlf ^ "   ---------" ^ crlf) rules_columns_rows)
 	in
 		rows field
 	

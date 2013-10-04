@@ -13,9 +13,10 @@ let _ = Random.self_init()
 let send player msg =
 	let (_, ch_out) = player in
 		try_lwt
-			Lwt_io.write_line ch_out msg
+			Lwt_io.write_line ch_out (msg ^ "\r")
 		with 
 			Lwt_io.Channel_closed _ -> Lwt.fail (Disconnected player)
+
 
 (* recives string from player *)
 let recv player =
@@ -132,7 +133,7 @@ let game_over p1 p2 game pending_player_box =
 
 (* Game loop *)
 let rec play p1 p2 game pending_player_box =
-	lwt _ = send p1 ( "\n" ^ (TicTacToe.field_to_string game) ^ "\n") in
+	lwt _ = send p1 ( "\r\n" ^ (TicTacToe.field_to_string game) ^ "\r\n") in
 		lwt _ = send p1 "It's your turn. Type \"turn <row> <column>\""
 		and _ = send p2 "Opponent makes his move" in
 			let rec _loop p1 p2 game pending_player_box = 
