@@ -139,7 +139,7 @@ let game_over p1 p2 game pending_player_box =
 
 (* Game loop *)
 let rec play p1 p2 game pending_player_box =
-	lwt _ = send p1 ( "\r\n" ^ (TicTacToe.field_to_string game) ^ "\r\n") in
+	lwt _ = send p1 ( "\r\n" ^ (TicTacToe.colored_str_of_field game) ^ "\r\n") in
 		lwt _ = send p1 "It's your turn. Type \"turn <row> <column>\""
 		and _ = send p2 "Opponent makes his move" in
 			let rec _loop p1 p2 game pending_player_box = 

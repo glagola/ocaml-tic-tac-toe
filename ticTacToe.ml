@@ -5,7 +5,7 @@ module TicTacToe : sig
 	val make_move : game -> int -> int -> game
 	val game_is_over : game -> bool
 	val is_draw : game -> bool
-	val field_to_string : game -> string
+	val colored_str_of_field : game -> string
 end = struct
 
 type player = X | O
@@ -53,19 +53,21 @@ let _char_to_player = function
 | 'O' -> O
 | _ -> raise (Invalid_argument "Only X/O allowed")
 
-
-let _next_state field turn =
+let _find_solution field =
 	let solution combo =
 		let combo_chars = List.map (String.get field) combo in
 			match combo_chars with
 				[a; b; c] when a = b && b = c && c <> '.' -> true
 			| _ -> false
 	in
-		try
-			let a = List.hd (List.find (solution) _win_combos) in
-				Win (_char_to_player field.[a])
-		with
-			Not_found -> if String.contains field '.' then turn else Draw
+		List.find (solution) _win_combos
+
+let _next_state field turn =
+	try
+		let a = List.hd (_find_solution field) in
+			Win (_char_to_player field.[a])
+	with
+		Not_found -> if String.contains field '.' then turn else Draw
 
 
 (* public *)
@@ -92,22 +94,59 @@ let game_is_over (state, _) =
 let is_draw (state, _) = state = Draw
 
 
-let field_to_string (_, field) =
-	let rows s =
-		let columns s =
-			let str = String.make 1 in
-				let chars = [ str s.[0]; str s.[1]; str s.[2] ] in
-					" " ^ String.concat " | " chars		
+let colored_str_of_field (_, field) =
+	let win_combo_str =
+		let win_combo =
+			try
+				_find_solution field
+			with
+				Not_found -> []
 		in
-			let sub = String.sub s in
-				let raw_rows = [ sub 0 3; sub 3 3; sub 6 3 ] in
-					let columns_rows = List.map (columns) raw_rows in
-						let f i s = Printf.sprintf (" %d" ^^ "%s") (i+1) s in
-							let crlf = "\r\n" in
-								let rules_columns_rows = List.mapi (f) columns_rows 
-								and rule = "   1   2   3" ^ crlf in
-									rule ^ (String.concat (crlf ^ "   ---------" ^ crlf) rules_columns_rows)
+			let win_combo_str_arr = List.map (fun i -> string_of_int i) win_combo
+			in
+				String.concat "" win_combo_str_arr
 	in
-		rows field
-	
+		let rec str_loop accum i =
+			let esc = String.make 1 (char_of_int 27)
+			in
+				let red		= esc ^ "[0;31m"
+				and blue	= esc ^ "[1;34m"
+				and cyan	= esc ^ "[0;36m"
+				and reset	= esc ^ "[0m"
+				in
+					let color_of_cell i = function
+							s	when String.contains win_combo_str i -> cyan
+						|	"X" -> red
+						|	"O" -> blue
+						| _		-> ""
+					in
+						if i = String.length field then
+							List.rev accum
+						else
+							let s = String.make 1 field.[i]
+							in
+								let colored_cell = (color_of_cell (string_of_int i).[0] s) ^ s ^ reset
+								in
+									str_loop (colored_cell :: accum) (i + 1)
+		in
+			let str_arr = str_loop [] 0
+			in
+				let rows = match str_arr with
+						[_0;_1;_2;_3;_4;_5;_6;_7;_8] -> [[_0;_1;_2]; [_3;_4;_5]; [_6;_7;_8]]
+					| _ -> raise (Failure "impossible")
+				in
+					let columns chars =
+						" " ^ String.concat " | " chars
+					in
+						let columns_rows = List.map (columns) rows
+						in
+							let f i s = Printf.sprintf (" %d" ^^ "%s") (i+1) s
+							in
+								let crlf = "\r\n"
+								in
+									let rules_columns_rows = List.mapi (f) columns_rows
+									and rule = "   1   2   3" ^ crlf
+									in
+										rule ^ (String.concat (crlf ^ "   ---------" ^ crlf) rules_columns_rows)
+
 end
