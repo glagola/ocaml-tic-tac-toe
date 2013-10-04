@@ -22,7 +22,13 @@ let send player msg =
 let recv player =
 	let (ch_in, _) = player in
 		try_lwt
-			Lwt_io.read_line ch_in
+			Lwt_io.read_line ch_in >>= (fun s -> 
+				(* Removes unsupported chars *)
+				let filter_input_chars = function
+						('a'..'z' | 'A'..'Z' | '0'..'9') as c -> c
+					| _ -> ' '
+				in
+					Lwt.return (String.map (filter_input_chars) s))
 		with
 			End_of_file -> Lwt.fail (Disconnected player)
 
