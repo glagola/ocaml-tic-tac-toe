@@ -30,7 +30,7 @@ let recv player =
 				in
 					Lwt.return (String.map (filter_input_chars) s))
 		with
-			End_of_file -> Lwt.fail (Disconnected player)
+			(End_of_file | Unix.Unix_error(Unix.ECONNRESET, _, _)) -> Lwt.fail (Disconnected player)
 
 
 (* recives command from player *)
