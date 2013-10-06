@@ -36,7 +36,7 @@ let recv player =
 (* recives command from player *)
 let resv_cmd cmd_parser cmd_validator player =
 	lwt str = recv player in
-		lwt parsed_cmd = cmd_parser (String.uppercase (String.trim str)) in
+		lwt parsed_cmd = cmd_parser (String.trim str) in
 			cmd_validator parsed_cmd >> Lwt.return parsed_cmd
 			
 
@@ -51,11 +51,7 @@ let rec wait_cmd player cmd_reader invalid_cmd_handler =
 
 
 (* Command parsers *)
-let parser_start_cmd str =
-	match str with
-		"START" -> Lwt.return str
-	| _ -> Lwt.fail (Invalid_command str)
-
+let parser_start_cmd str = Lwt.return str
 
 let parser_turn_cmd str =
 	try_lwt
@@ -65,14 +61,24 @@ let parser_turn_cmd str =
 		_ ->
 			Lwt.fail (Invalid_command str)
 
+let parser_msg_cmd str =
+	try_lwt
+		let len = String.length str in
+			Lwt.return (String.trim (String.sub str 0 4), String.trim (String.sub str 4 (len - 4)))
+	with
+		_ ->
+			Lwt.fail (Invalid_command str)				
+	
 
 (* Command validators *)
-let validator_start_cmd = function
-	"START"	->	Lwt.return ()
-|	_ as cmd -> Lwt.fail(Invalid_command cmd)
+let validator_start_cmd cmd =
+	match String.uppercase cmd with
+		"START"	->	Lwt.return ()
+	|	_ as cmd -> Lwt.fail(Invalid_command cmd)
+
 
 let validator_turn_cmd (cmd, x, y) =
-	if cmd = "TURN" then
+	if String.uppercase cmd = "TURN" then
 		if x < 1 || x > 3 then
 			Lwt.fail (Invalid_argument "row")
 		else
@@ -83,6 +89,15 @@ let validator_turn_cmd (cmd, x, y) =
 	else
 		Lwt.fail (Invalid_command cmd)
 			
+
+let validator_msg_cmd (cmd, message) =
+	if String.uppercase cmd = "MSG" then
+		if String.length message > 0 then
+			Lwt.return ()
+		else
+			Lwt.fail (Invalid_argument "message")
+	else
+		Lwt.fail (Invalid_command cmd)
 
 
 (* Logs invalid command and send error text to player *)
@@ -104,17 +119,10 @@ let wait_cmd_turn player =
 	let cmd_reader = resv_cmd parser_turn_cmd validator_turn_cmd in
 		wait_cmd player cmd_reader invalid_command_handler
 
-
-(* Ignores all commands from player *)
-let ignore_all_cmds player error_msg =
-	let ignore_parser str = Lwt.fail (Invalid_command str)
-	and ignore_validator _ = Lwt.return false
-	and invalid_command_handler player _ =
-		lwt _ = send player error_msg in
-			Lwt.return ()
-	in
-		let cmd_reader = resv_cmd ignore_parser ignore_validator in 
-			wait_cmd player cmd_reader invalid_command_handler 
+(* MSG *)
+let wait_cmd_msg player =
+	let cmd_reader = resv_cmd parser_msg_cmd validator_msg_cmd in
+		wait_cmd player cmd_reader invalid_command_handler
 			
 
 (* Waits until player typed "START" and moves him to pending queue *)
@@ -156,13 +164,19 @@ let game_over p1 p2 game pending_player_box =
 					Lwt.return ()
 
 
+(* Provides ability to send a message to the current player from opponent, which waits of his turn *)
+let rec msg_cmd_loop p1 p2 = 
+	lwt (_, message) = wait_cmd_msg p2 in
+		send p1 ("Opponent says: " ^ message) >> msg_cmd_loop p1 p2
+
+
 (* Game loop *)
 let rec play p1 p2 game pending_player_box =
 	lwt _ = send p1 (colored_str_of_field game) in
 		lwt _ = send p1 "It's your turn. Type \"turn <row> <column>\""
-		and _ = send p2 "Opponent makes his move" in
+		and _ = send p2 "Opponent makes his move. You can send him a message, type \"msg <message>\"" in
 			let rec _loop p1 p2 game pending_player_box = 
-				lwt (_, y, x) = Lwt.pick [ wait_cmd_turn p1; ignore_all_cmds p2 "Be patient, opponent makes his move" ] in
+				lwt (_, y, x) = Lwt.pick [ wait_cmd_turn p1; msg_cmd_loop p1 p2 ] in
 					try_lwt
 						let game = TicTacToe.make_move game (x - 1) (y - 1) in
 							if TicTacToe.game_is_over game then
