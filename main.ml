@@ -34,7 +34,7 @@ let recv player =
 
 
 (* recives command from player *)
-let resv_cmd cmd_parser cmd_validator player =
+let recv_cmd cmd_parser cmd_validator player =
 	lwt str = recv player in
 		lwt parsed_cmd = cmd_parser (String.trim str) in
 			cmd_validator parsed_cmd >> Lwt.return parsed_cmd
@@ -110,18 +110,18 @@ let invalid_command_handler player = function
 (* Command waiters *)
 (* START *)
 let wait_cmd_start player =
-	let cmd_reader = resv_cmd parser_start_cmd validator_start_cmd in
+	let cmd_reader = recv_cmd parser_start_cmd validator_start_cmd in
 		wait_cmd player cmd_reader invalid_command_handler
 
 
 (* TURN *)
 let wait_cmd_turn player =
-	let cmd_reader = resv_cmd parser_turn_cmd validator_turn_cmd in
+	let cmd_reader = recv_cmd parser_turn_cmd validator_turn_cmd in
 		wait_cmd player cmd_reader invalid_command_handler
 
 (* MSG *)
 let wait_cmd_msg player =
-	let cmd_reader = resv_cmd parser_msg_cmd validator_msg_cmd in
+	let cmd_reader = recv_cmd parser_msg_cmd validator_msg_cmd in
 		wait_cmd player cmd_reader invalid_command_handler
 			
 
