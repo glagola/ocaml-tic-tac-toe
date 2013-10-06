@@ -5,7 +5,7 @@ exception Bad_Command
 
 type player = Lwt_io.input_channel * Lwt_io.output_channel
 exception Disconnected of player
-exception Invalid_Command of string
+exception Invalid_command of string
 
 let _ = Random.self_init()
 
@@ -25,7 +25,7 @@ let recv player =
 			Lwt_io.read_line ch_in >>= (fun s -> 
 				(* Removes unsupported chars *)
 				let filter_input_chars = function
-						('a'..'z' | 'A'..'Z' | '0'..'9') as c -> c
+						('a'..'z' | 'A'..'Z' | '0'..'9' | '-') as c -> c
 					| _ -> ' '
 				in
 					Lwt.return (String.map (filter_input_chars) s))
@@ -37,9 +37,7 @@ let recv player =
 let resv_cmd cmd_parser cmd_validator player =
 	lwt str = recv player in
 		lwt parsed_cmd = cmd_parser (String.uppercase (String.trim str)) in
-			match_lwt cmd_validator parsed_cmd with
-				true -> Lwt.return parsed_cmd
-			| _ -> Lwt.fail (Invalid_Command str)
+			cmd_validator parsed_cmd >> Lwt.return parsed_cmd
 			
 
 (* wait correct command from player *)
@@ -47,8 +45,8 @@ let rec wait_cmd player cmd_reader invalid_cmd_handler =
 	try_lwt
 		cmd_reader player	
 	with
-		Invalid_Command s ->
-			lwt _ = invalid_cmd_handler player s in
+		(Invalid_command s | Invalid_argument s) as exn ->
+			lwt _ = invalid_cmd_handler player exn in
 				wait_cmd player cmd_reader invalid_cmd_handler
 
 
@@ -56,7 +54,7 @@ let rec wait_cmd player cmd_reader invalid_cmd_handler =
 let parser_start_cmd str =
 	match str with
 		"START" -> Lwt.return str
-	| _ -> Lwt.fail (Invalid_Command str)
+	| _ -> Lwt.fail (Invalid_command str)
 
 
 let parser_turn_cmd str =
@@ -65,19 +63,33 @@ let parser_turn_cmd str =
 			Lwt.return r
 	with
 		_ ->
-			Lwt.fail (Invalid_Command str)
+			Lwt.fail (Invalid_command str)
 
 
 (* Command validators *)
-let validator_start_cmd cmd = Lwt.return (cmd = "START")
-let validator_turn_cmd (cmd, x, y) = Lwt.return (cmd = "TURN" && x >= 1 && x <= 3 && y >= 1 && y <= 3)
+let validator_start_cmd = function
+	"START"	->	Lwt.return ()
+|	_ as cmd -> Lwt.fail(Invalid_command cmd)
+
+let validator_turn_cmd (cmd, x, y) =
+	if cmd = "TURN" then
+		if x < 1 || x > 3 then
+			Lwt.fail (Invalid_argument "row")
+		else
+			if y < 1 || y > 3 then
+				Lwt.fail (Invalid_argument "column")	
+			else
+				Lwt.return ()
+	else
+		Lwt.fail (Invalid_command cmd)
+			
 
 
 (* Logs invalid command and send error text to player *)
-let invalid_command_handler player cmd_str =
-	lwt _ = Lwt_log.debug ("Invalid command \"" ^ cmd_str ^ "\"")
-	and _ = send player "Invalid command" in
-		Lwt.return ()
+let invalid_command_handler player = function
+	Invalid_command cmd_str				->	Lwt_log.debug ("Invalid command \"" ^ cmd_str ^ "\"") >> send player "Invalid command"
+| Invalid_argument description	->	Lwt_log.debug ("Invalid command argument \"" ^ description ^ "\"") >> send player ("Invalid value of " ^ description ^ " argument")
+| _ -> Lwt.fail (Failure "impossible")
 
 
 (* Command waiters *)
@@ -95,7 +107,7 @@ let wait_cmd_turn player =
 
 (* Ignores all commands from player *)
 let ignore_all_cmds player error_msg =
-	let ignore_parser str = Lwt.fail (Invalid_Command str)
+	let ignore_parser str = Lwt.fail (Invalid_command str)
 	and ignore_validator _ = Lwt.return false
 	and invalid_command_handler player _ =
 		lwt _ = send player error_msg in
